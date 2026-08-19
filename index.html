@@ -61,6 +61,10 @@ textarea{width:100%;background:var(--raised);border:1px solid var(--border);bord
 .banner{background:var(--raised);border:1px solid var(--border);border-radius:12px;padding:12px;
   margin-bottom:12px;font-size:13px;color:var(--muted-fg);line-height:1.5}
 .banner b{color:var(--fg);font-weight:600}
+.filed{text-align:center;padding:18px 6px}
+.filed h3{margin:14px 0 10px;font-size:16px;font-weight:600;line-height:1.4}
+.tickbig{width:52px;height:52px;margin:0 auto;border-radius:50%;display:grid;place-items:center;
+  background:color-mix(in oklab,var(--success) 20%,transparent);color:var(--success)}
 a{color:var(--primary)}
 
 /* lock screen */
@@ -387,9 +391,25 @@ $('fab').onclick = () => {
     if (!text) return
     s.querySelector('#send').textContent = 'Filing…'
     try {
-      await call('/capture', { method: 'POST', body: JSON.stringify({ text, source: 'app' }) })
-    } catch (e) { /* the raw text is kept server side; nothing to recover here */ }
-    s.remove(); load()
+      const r = await call('/capture', { method: 'POST', body: JSON.stringify({ text, source: 'app' }) })
+      const j = await r.json()
+      // Say where it went. Silently closing gives no way to notice a misroute.
+      const where = { person: 'Network', interaction: 'Network', task: 'To-dos',
+                      thought: 'Thoughts', finance: 'Finance' }
+      s.querySelector('.inner').innerHTML =
+        '<div class="filed">' +
+          '<div class="tickbig"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
+            'stroke="currentColor" stroke-width="3"><path d="M4 12l5 5L20 6"/></svg></div>' +
+          '<h3>' + esc(j.spoken || 'Saved.') + '</h3>' +
+          '<div class="meta">' + (j.filed || []).map(f =>
+            '<span class="pill">' + esc(where[f.type] || f.type) + '</span>').join('') +
+            (j.parser === 'rules' ? '<span class="pill warn">no AI</span>' : '') +
+          '</div>' +
+        '</div>'
+      setTimeout(() => { s.remove(); load() }, 1600)
+    } catch (e) {
+      s.querySelector('#send').textContent = 'No connection — try again'
+    }
   }
   setTimeout(() => s.querySelector('#ta').focus(), 60)
 }
