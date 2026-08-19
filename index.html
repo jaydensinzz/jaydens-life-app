@@ -62,10 +62,36 @@ textarea{width:100%;background:var(--raised);border:1px solid var(--border);bord
   margin-bottom:12px;font-size:13px;color:var(--muted-fg);line-height:1.5}
 .banner b{color:var(--fg);font-weight:600}
 a{color:var(--primary)}
+
+/* lock screen */
+body.locked header, body.locked nav, body.locked .fab, body.locked main{display:none}
+#lock{display:none;position:fixed;inset:0;z-index:40;background:var(--bg);
+  align-items:center;justify-content:center;padding:24px}
+.lockbox{width:100%;max-width:330px;text-align:center}
+.lockicon{width:58px;height:58px;margin:0 auto 18px;border-radius:50%;
+  background:color-mix(in oklab,var(--primary) 18%,transparent);color:var(--primary);
+  display:grid;place-items:center}
+.lockbox h2{margin:0 0 8px;font-size:20px;font-weight:650;letter-spacing:-.01em}
+.lockbox p{margin:0 0 20px;font-size:13.5px;color:var(--muted-fg);line-height:1.55}
+.lockbox input{width:100%;background:var(--raised);border:1px solid var(--border);
+  border-radius:12px;color:var(--fg);padding:14px;font:inherit;font-size:21px;
+  text-align:center;letter-spacing:.32em;margin-bottom:10px}
+.lockbox input:focus{outline:none;border-color:var(--primary)}
+.lockerr{margin-top:12px;font-size:13px;color:var(--destructive);min-height:18px;line-height:1.45}
+#lockbtn{color:var(--muted-fg);display:grid;place-items:center;padding:4px}
 </style>
 </head>
 <body>
-<header><h1 id="title">To-dos</h1><span class="sp" id="sp"></span></header>
+<div id="lock"></div>
+<header>
+  <h1 id="title">To-dos</h1>
+  <span class="sp" id="sp"></span>
+  <button id="lockbtn" aria-label="Devices and code">
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+      stroke-width="1.8" stroke-linecap="round"><rect x="4" y="10" width="16" height="10" rx="2.5"/>
+      <path d="M8 10V7a4 4 0 018 0v3"/></svg>
+  </button>
+</header>
 <main id="view"><div class="empty">Loading…</div></main>
 <button class="fab" id="fab">+</button>
 <nav>
@@ -76,19 +102,32 @@ a{color:var(--primary)}
 </nav>
 
 <script>
-// Substituted by scripts/build-static.ts at build time — the page is hosted on
-// GitHub Pages, the API lives on Supabase, so this must be absolute.
+// --- where we are ----------------------------------------------------------
 const API = 'https://aezhxtaeelcfnzcitkfe.supabase.co/functions/v1/jl'
-const KEY = new URLSearchParams(location.search).get('k') || localStorage.getItem('jlkey') || ''
-if (KEY) localStorage.setItem('jlkey', KEY)
-const api = (p, o = {}) => fetch(API + p, {
-  ...o, headers: { 'x-jl-key': KEY, 'content-type': 'application/json', ...(o.headers || {}) }
+const params = new URLSearchParams(location.search)
+const SETUP_KEY = params.get('k') || ''            // only used to claim the code once
+let TOKEN = localStorage.getItem('jl_device') || ''
+
+// Strip the setup key out of the address bar so it stops living in history.
+if (SETUP_KEY) history.replaceState(null, '', location.pathname)
+
+const call = (p, o = {}) => fetch(API + p, {
+  ...o,
+  headers: {
+    'content-type': 'application/json',
+    ...(TOKEN ? { 'x-jl-device': TOKEN } : {}),
+    ...(o.setup && SETUP_KEY ? { 'x-jl-key': SETUP_KEY } : {}),
+    ...(o.headers || {}),
+  },
 })
 
 let D = { tasks: [], thoughts: [], people: [], captures: [] }
-let tab = new URLSearchParams(location.search).get('tab') || 'todos'
+let tab = params.get('tab') || 'todos'
+let loaded = false
 
+const $ = id => document.getElementById(id)
 const esc = s => (s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))
+
 const fmt = iso => {
   if (!iso) return ''
   const d = new Date(iso), now = new Date()
@@ -97,10 +136,92 @@ const fmt = iso => {
   const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   if (diff === 0) return 'Today ' + t
   if (diff === 1) return 'Tomorrow ' + t
-  if (diff === -1) return 'Yesterday ' + t
-  if (diff < 0) return Math.abs(diff) + 'd overdue'
+  if (diff < 0) return Math.abs(diff) === 1 ? 'Yesterday ' + t : Math.abs(diff) + 'd overdue'
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + t
 }
+
+// --- lock screen -----------------------------------------------------------
+
+function showLock({ mode, message }) {
+  document.body.classList.add('locked')
+  const creating = mode === 'create'
+  $('lock').innerHTML =
+    '<div class="lockbox">' +
+      '<div class="lockicon">' +
+        '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7">' +
+        '<rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>' +
+      '</div>' +
+      '<h2>' + (creating ? 'Choose your code' : "Jayden's Life") + '</h2>' +
+      '<p>' + esc(message || (creating
+        ? 'Four to twelve digits. You will need it on any new device, and again after a week away.'
+        : 'Enter your code to unlock.')) + '</p>' +
+      '<input id="code" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" ' +
+        'placeholder="••••••" maxlength="12">' +
+      (creating ? '<input id="code2" type="password" inputmode="numeric" pattern="[0-9]*" ' +
+        'autocomplete="off" placeholder="Repeat it" maxlength="12">' : '') +
+      '<button class="btn" id="go">' + (creating ? 'Set code' : 'Unlock') + '</button>' +
+      '<div class="lockerr" id="lockerr"></div>' +
+    '</div>'
+  $('lock').style.display = 'flex'
+
+  const submit = async () => {
+    const code = $('code').value.trim()
+    const err = m => { $('lockerr').textContent = m }
+    if (!/^\d{4,12}$/.test(code)) return err('Digits only, at least four.')
+    if (creating && code !== $('code2').value.trim()) return err('The two codes do not match.')
+    $('go').textContent = 'Working…'
+    try {
+      if (creating) {
+        const r = await call('/auth/set-code', { method: 'POST', setup: true, body: JSON.stringify({ code }) })
+        const j = await r.json()
+        if (!r.ok) { $('go').textContent = 'Set code'; return err(j.error || 'Could not set the code.') }
+      }
+      const r = await call('/auth/unlock', {
+        method: 'POST',
+        body: JSON.stringify({ code, label: deviceLabel() }),
+      })
+      const j = await r.json()
+      if (!r.ok) {
+        $('go').textContent = creating ? 'Set code' : 'Unlock'
+        return err(j.error === 'wrong code'
+          ? 'Wrong code. ' + (j.attemptsLeft ?? 0) + ' tries left before a 15 minute wait.'
+          : (j.error || 'Could not unlock.'))
+      }
+      TOKEN = j.token
+      localStorage.setItem('jl_device', TOKEN)
+      $('lock').style.display = 'none'
+      document.body.classList.remove('locked')
+      boot()
+    } catch (e) {
+      $('go').textContent = creating ? 'Set code' : 'Unlock'
+      err('No connection. Try again.')
+    }
+  }
+  $('go').onclick = submit
+  $('code').onkeydown = e => { if (e.key === 'Enter') submit() }
+  setTimeout(() => $('code').focus(), 100)
+}
+
+function deviceLabel() {
+  const ua = navigator.userAgent
+  if (/iPhone/.test(ua)) return 'iPhone'
+  if (/iPad/.test(ua)) return 'iPad'
+  if (/Macintosh/.test(ua)) return 'Mac'
+  if (/Android/.test(ua)) return 'Android'
+  return 'Browser'
+}
+
+function lockOut(reason) {
+  TOKEN = ''
+  localStorage.removeItem('jl_device')
+  const msg = reason === 'idle'
+    ? 'A week without opening this, so it locked itself. Enter your code.'
+    : reason === 'revoked' ? 'This device was signed out. Enter your code.'
+    : 'Enter your code to unlock.'
+  showLock({ mode: 'unlock', message: msg })
+}
+
+// --- views -----------------------------------------------------------------
 
 const views = {
   todos: () => D.tasks.length ? D.tasks.map(t => `
@@ -151,46 +272,111 @@ const views = {
     </div>`).join('') : '<div class="empty">Nothing captured yet.</div>'),
 }
 
+// --- push ------------------------------------------------------------------
+
+const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+
 function pushBanner() {
-  if (!('Notification' in window)) return ''
-  if (Notification.permission === 'granted') return ''
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    return '<div class="banner"><b>Reminders need the installed app.</b> Open this from your home ' +
+           'screen icon rather than the browser.</div>'
+  }
+  if (!standalone()) {
+    return '<div class="banner"><b>Add this to your home screen first.</b> Tap Share, then ' +
+           '"Add to Home Screen", then open it from that icon. iPhones only allow notifications ' +
+           'from an installed app.</div>'
+  }
+  if (Notification.permission === 'denied') {
+    return '<div class="banner"><b>Notifications are blocked.</b> Settings &rsaquo; Notifications ' +
+           '&rsaquo; Life, and turn on Allow Notifications.</div>'
+  }
+  if (Notification.permission === 'granted' && localStorage.getItem('jl_pushed') === '1') return ''
   return '<div class="banner"><b>Reminders are off.</b> Turn on notifications so to-dos ' +
     'can chase you.<button class="btn" onclick="enablePush()">Turn on notifications</button></div>'
 }
 
+const b64 = s => {
+  const p = (s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')
+  return Uint8Array.from(atob(p), c => c.charCodeAt(0))
+}
+
+async function enablePush() {
+  try {
+    if (!standalone()) return alert('Open the app from your home screen icon first — iPhones only allow notifications from an installed app.')
+    // The key comes from the server; if the last load failed we would otherwise
+    // fail with a cryptic error, so fetch it again rather than trusting state.
+    if (!D.vapidPublicKey) await load()
+    if (!D.vapidPublicKey) return alert('Could not reach the server. Check your connection and try again.')
+
+    const perm = await Notification.requestPermission()
+    if (perm !== 'granted') return alert('Notifications were not allowed. You can turn them on in Settings > Notifications > Life.')
+
+    const reg = await navigator.serviceWorker.register('./sw.js')
+    await navigator.serviceWorker.ready
+    let sub = await reg.pushManager.getSubscription()
+    if (!sub) sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: b64(D.vapidPublicKey),
+    })
+    const j = sub.toJSON()
+    const r = await call('/subscribe', { method: 'POST', body: JSON.stringify({
+      endpoint: j.endpoint, keys: j.keys, label: deviceLabel() }) })
+    if (!r.ok) throw new Error('server refused the subscription')
+    localStorage.setItem('jl_pushed', '1')
+    render()
+    alert('Reminders are on.')
+  } catch (e) {
+    alert('Could not turn on notifications: ' + (e && e.message ? e.message : e))
+  }
+}
+
+// --- shell -----------------------------------------------------------------
+
 function render() {
-  document.getElementById('title').textContent =
-    { todos: 'To-dos', thoughts: 'Thoughts', network: 'Network', inbox: 'Inbox' }[tab]
-  document.getElementById('view').innerHTML = views[tab]()
+  $('title').textContent = { todos: 'To-dos', thoughts: 'Thoughts', network: 'Network', inbox: 'Inbox' }[tab]
+  $('view').innerHTML = loaded ? views[tab]()
+    : '<div class="empty">Could not reach the server.<br>' +
+      '<button class="btn" style="max-width:200px;margin:16px auto 0" onclick="load()">Try again</button></div>'
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab))
 }
 
 async function load() {
-  if (!KEY) { document.getElementById('view').innerHTML =
-    '<div class="empty">Open this page using the full link with your key.</div>'; return }
-  const r = await api('/data')
-  if (!r.ok) { document.getElementById('view').innerHTML =
-    '<div class="empty">Key rejected. Open the full link again.</div>'; return }
-  D = await r.json()
-  const spent = D.usage ? Number(D.usage.cost_usd) : 0
-  document.getElementById('sp').textContent = spent ? '$' + spent.toFixed(2) + ' this month' : ''
+  if (!TOKEN) return
+  try {
+    const r = await call('/data')
+    if (r.status === 401) {
+      const j = await r.json().catch(() => ({}))
+      return lockOut(j.reason)
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status)
+    D = await r.json()
+    loaded = true
+    const spent = D.usage ? Number(D.usage.cost_usd) : 0
+    $('sp').textContent = spent ? '$' + spent.toFixed(2) + ' this month' : ''
+  } catch (e) {
+    loaded = false          // say so plainly instead of showing a convincing blank app
+  }
   render()
 }
 
-async function done(id) { await api('/task/' + id + '/done', { method: 'POST' })
-  D.tasks = D.tasks.filter(t => t.id !== id); render() }
-async function archive(id) { await api('/thought/' + id + '/archive', { method: 'POST' })
-  D.thoughts = D.thoughts.filter(t => t.id !== id); render() }
+async function done(id) {
+  D.tasks = D.tasks.filter(t => t.id !== id); render()
+  await call('/task/' + id + '/done', { method: 'POST' })
+}
+async function archive(id) {
+  D.thoughts = D.thoughts.filter(t => t.id !== id); render()
+  await call('/thought/' + id + '/archive', { method: 'POST' })
+}
 
 document.querySelectorAll('nav button').forEach(b =>
   b.onclick = () => { tab = b.dataset.tab; render() })
 
-// --- typing a capture from the phone ---------------------------------------
-document.getElementById('fab').onclick = () => {
+// Capture typed from the phone.
+$('fab').onclick = () => {
   const s = document.createElement('div')
   s.className = 'sheet'
-  s.innerHTML = '<div class="inner"><textarea id="ta" placeholder="Say anything — a to-do, ' +
-    'a thought, someone you met…" autofocus></textarea>' +
+  s.innerHTML = '<div class="inner"><textarea id="ta" placeholder="Anything — a to-do, ' +
+    'a thought, someone you met…"></textarea>' +
     '<button class="btn" id="send">Capture</button>' +
     '<button class="btn ghost" id="cancel">Cancel</button></div>'
   document.body.appendChild(s)
@@ -200,40 +386,76 @@ document.getElementById('fab').onclick = () => {
     const text = s.querySelector('#ta').value.trim()
     if (!text) return
     s.querySelector('#send').textContent = 'Filing…'
-    await api('/capture', { method: 'POST', body: JSON.stringify({ text, source: 'app' }) })
+    try {
+      await call('/capture', { method: 'POST', body: JSON.stringify({ text, source: 'app' }) })
+    } catch (e) { /* the raw text is kept server side; nothing to recover here */ }
     s.remove(); load()
   }
-  setTimeout(() => s.querySelector('#ta').focus(), 50)
+  setTimeout(() => s.querySelector('#ta').focus(), 60)
 }
 
-// --- push -------------------------------------------------------------------
-const b64 = s => {
-  const p = (s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')
-  return Uint8Array.from(atob(p), c => c.charCodeAt(0))
+// Lock / devices menu.
+$('lockbtn').onclick = async () => {
+  const r = await call('/auth/devices')
+  const j = r.ok ? await r.json() : { devices: [] }
+  const rows = j.devices.filter(d => !d.revoked_at).map(d =>
+    '<div class="row" style="padding:9px 0;border-bottom:1px solid var(--border)">' +
+      '<div class="grow"><b>' + esc(d.label || 'device') + (d.id === j.thisDevice ? ' (this one)' : '') +
+      '</b><div class="meta">last used ' + fmt(d.last_seen_at) + '</div></div>' +
+      (d.id === j.thisDevice ? '' :
+        '<button class="pill warn" onclick="revoke(\'' + d.id + '\')">Sign out</button>') +
+    '</div>').join('')
+  const s = document.createElement('div')
+  s.className = 'sheet'
+  s.innerHTML = '<div class="inner"><h3 style="margin:0 0 10px">Devices</h3>' + rows +
+    '<button class="btn ghost" id="chg">Change code</button>' +
+    '<button class="btn ghost" id="lock">Lock this device now</button>' +
+    '<button class="btn ghost" id="cancel">Close</button></div>'
+  document.body.appendChild(s)
+  s.querySelector('#cancel').onclick = () => s.remove()
+  s.onclick = e => { if (e.target === s) s.remove() }
+  s.querySelector('#lock').onclick = async () => {
+    await call('/auth/lock', { method: 'POST' })
+    s.remove(); lockOut('revoked')
+  }
+  s.querySelector('#chg').onclick = async () => {
+    const oldCode = prompt('Current code')
+    if (!oldCode) return
+    const code = prompt('New code (4-12 digits)')
+    if (!code) return
+    const r = await call('/auth/set-code', { method: 'POST', body: JSON.stringify({ code, oldCode }) })
+    const j = await r.json()
+    alert(r.ok ? 'Code changed.' : (j.error || 'Could not change the code.'))
+    if (r.ok) s.remove()
+  }
 }
 
-async function enablePush() {
+async function revoke(id) {
+  await call('/auth/devices/' + id + '/revoke', { method: 'POST' })
+  alert('Signed out. That device needs the code again.')
+}
+
+// --- start -----------------------------------------------------------------
+
+async function boot() {
+  await load()
+  if (TOKEN) {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {})
+    setInterval(load, 60000)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) load() })
+  }
+}
+
+;(async () => {
+  if (TOKEN) return boot()
   try {
-    const perm = await Notification.requestPermission()
-    if (perm !== 'granted') return alert('Notifications are blocked. Turn them on in Settings > Notifications > Life.')
-    const reg = await navigator.serviceWorker.register('./sw.js')
-    await navigator.serviceWorker.ready
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: b64(D.vapidPublicKey),
-    })
-    const j = sub.toJSON()
-    await api('/subscribe', { method: 'POST', body: JSON.stringify({
-      endpoint: j.endpoint, keys: j.keys, label: navigator.userAgent.slice(0, 60) }) })
-    render()
-    alert('Reminders are on.')
-  } catch (e) { alert('Could not turn on notifications: ' + e.message) }
-}
-
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {})
-load()
-setInterval(load, 60000)
-document.addEventListener('visibilitychange', () => { if (!document.hidden) load() })
+    const r = await fetch(API + '/auth/status')
+    const j = await r.json()
+    showLock({ mode: j.codeSet ? 'unlock' : 'create' })
+  } catch (e) {
+    $('view').innerHTML = '<div class="empty">Could not reach the server.<br>Check your connection.</div>'
+  }
+})()
 </script>
 </body>
 </html>
