@@ -83,6 +83,58 @@ body.locked header, body.locked nav, body.locked .fab, body.locked main{display:
 .lockbox input:focus{outline:none;border-color:var(--primary)}
 .lockerr{margin-top:12px;font-size:13px;color:var(--destructive);min-height:18px;line-height:1.45}
 #lockbtn{color:var(--muted-fg);display:grid;place-items:center;padding:4px}
+
+/* collapsible to-do groups */
+.grp{margin-bottom:14px}
+.grphead{display:flex;align-items:center;gap:8px;width:100%;padding:6px 2px 8px;
+  font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted-fg)}
+.grphead .od{color:var(--destructive)}
+.grphead .count{margin-left:auto;font-size:11px;background:var(--muted);
+  color:var(--muted-fg);border-radius:999px;padding:1px 8px;letter-spacing:0}
+.chev{transition:transform .18s}
+.chev.shut{transform:rotate(-90deg)}
+
+/* network toolbar */
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.searchwrap{flex:1;display:flex;align-items:center;gap:8px;background:var(--raised);
+  border:1px solid var(--border);border-radius:11px;padding:0 11px;color:var(--muted-fg)}
+.searchwrap input{flex:1;background:none;border:none;color:var(--fg);font:inherit;
+  font-size:14.5px;padding:11px 0;outline:none;min-width:0}
+.clearq{color:var(--muted-fg);font-size:19px;padding:0 2px;line-height:1}
+.viewtog{width:42px;height:42px;flex:0 0 42px;border:1px solid var(--border);
+  border-radius:11px;background:var(--raised);color:var(--muted-fg);display:grid;place-items:center}
+
+.card.tap{cursor:pointer}
+.meta.strong{color:var(--fg);font-size:13.5px}
+.meta.ig{color:var(--primary)}
+.chevr{color:var(--muted-fg);flex:0 0 16px;margin-top:3px}
+
+/* table view */
+.tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;
+  background:var(--card);-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:max-content;min-width:100%;font-size:13.5px}
+th{position:sticky;top:0;text-align:left;font-size:11px;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--muted-fg);font-weight:600;
+  padding:11px 13px;background:var(--raised);white-space:nowrap}
+td{padding:12px 13px;border-top:1px solid var(--border);white-space:nowrap;
+  color:var(--muted-fg);max-width:210px;overflow:hidden;text-overflow:ellipsis}
+td.nm{color:var(--fg);font-weight:600}
+tbody tr:active{background:var(--hover)}
+
+/* person detail */
+.inner.tall{max-height:86vh;overflow-y:auto}
+.phead{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+.phead h2{margin:0;font-size:20px;font-weight:650;letter-spacing:-.01em;flex:1}
+.closex{font-size:26px;color:var(--muted-fg);line-height:1;padding:0 4px}
+.prows{border-top:1px solid var(--border)}
+.prow{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+.prow .k{flex:0 0 96px;color:var(--muted-fg);font-size:12.5px;padding-top:1px}
+.prow .v{flex:1;min-width:0;word-break:break-word}
+.tlh{margin:18px 0 8px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted-fg);font-weight:600}
+.tl{display:flex;gap:12px;padding:8px 0;font-size:13.5px;line-height:1.5}
+.tld{flex:0 0 92px;color:var(--muted-fg);font-size:12.5px}
 </style>
 </head>
 <body>
@@ -134,14 +186,18 @@ const esc = s => (s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>'
 
 const fmt = iso => {
   if (!iso) return ''
-  const d = new Date(iso), now = new Date()
+  // A bare YYYY-MM-DD has no time in it; showing one invents 00:00 and then
+  // shifts it by the timezone, which is how "today" became "Today 04:00".
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso)
+  const d = dateOnly ? new Date(iso + 'T12:00:00') : new Date(iso)
+  const now = new Date()
   const day = new Date(d).setHours(0,0,0,0), today = new Date(now).setHours(0,0,0,0)
   const diff = Math.round((day - today) / 86400000)
-  const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  if (diff === 0) return 'Today ' + t
-  if (diff === 1) return 'Tomorrow ' + t
-  if (diff < 0) return Math.abs(diff) === 1 ? 'Yesterday ' + t : Math.abs(diff) + 'd overdue'
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + t
+  const t = dateOnly ? '' : ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  if (diff === 0) return 'Today' + t
+  if (diff === 1) return 'Tomorrow' + t
+  if (diff < 0) return Math.abs(diff) === 1 ? 'Yesterday' + t : Math.abs(diff) + 'd ago'
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + t
 }
 
 // --- lock screen -----------------------------------------------------------
@@ -228,20 +284,24 @@ function lockOut(reason) {
 // --- views -----------------------------------------------------------------
 
 const views = {
-  todos: () => D.tasks.length ? D.tasks.map(t => `
-    <div class="card"><div class="row">
-      <button class="tick" onclick="done('${t.id}')"><svg width="14" height="14" viewBox="0 0 24 24"
-        fill="none" stroke="currentColor" stroke-width="3.5"><path d="M4 12l5 5L20 6"/></svg></button>
-      <div class="grow">
-        <h3>${esc(t.title)}</h3>
-        ${t.notes ? '<div class="meta">' + esc(t.notes) + '</div>' : ''}
-        <div style="margin-top:6px">
-          ${t.priority && t.priority !== 'normal' ? '<span class="pill warn">' + t.priority + '</span>' : ''}
-          ${t.remind_at ? '<span class="pill due">' + fmt(t.remind_at) + '</span>' : ''}
-        </div>
-      </div>
-    </div></div>`).join('')
-    : '<div class="empty">Nothing on the list.<br>Say "Hey Siri, add to my to-do list".</div>',
+  todos: () => {
+    const groups = groupTasks(D.tasks)
+    if (!D.tasks.length)
+      return '<div class="empty">Nothing on the list.<br>Say "Hey Siri, Brain Dump".</div>'
+    return groups.map(g => {
+      const shut = collapsed(g.key)
+      return '<section class="grp">' +
+        '<button class="grphead" onclick="toggleGroup(\'' + g.key + '\')">' +
+          '<svg class="chev' + (shut ? ' shut' : '') + '" viewBox="0 0 24 24" width="15" height="15" ' +
+            'fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" ' +
+            'stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' +
+          '<span' + (g.key === 'overdue' ? ' class="od"' : '') + '>' + g.label + '</span>' +
+          '<span class="count">' + g.items.length + '</span>' +
+        '</button>' +
+        (shut ? '' : '<div class="grpbody">' + g.items.map(taskCard).join('') + '</div>') +
+      '</section>'
+    }).join('')
+  },
 
   thoughts: () => D.thoughts.length ? D.thoughts.map(t => `
     <div class="card" onclick="archive('${t.id}')">
@@ -251,18 +311,35 @@ const views = {
     </div>`).join('')
     : '<div class="empty">No thoughts captured yet.<br>Say "Hey Siri, add to my thoughts".</div>',
 
-  network: () => D.people.length ? D.people.map(p => `
-    <div class="card">
-      <h3>${esc(p.name)}</h3>
-      ${p.context ? '<div class="meta">' + esc(p.context) + '</div>' : ''}
-      ${p.how_met ? '<div class="meta">' + esc(p.how_met) + '</div>' : ''}
-      <div style="margin-top:8px">
-        ${p.met_place ? '<span class="pill">' + esc(p.met_place) + '</span>' : ''}
-        ${p.tier ? '<span class="pill">' + esc(p.tier) + '</span>' : ''}
-      </div>
-      ${p.phone ? '<div style="margin-top:8px"><a href="tel:' + esc(p.phone) + '">' + esc(p.phone) + '</a></div>' : ''}
-    </div>`).join('')
-    : '<div class="empty">Nobody yet.<br>Say "Hey Siri, log a person".</div>',
+  network: () => {
+    const list = filterPeople(D.people, netQuery)
+    const head =
+      '<div class="toolbar">' +
+        '<div class="searchwrap">' +
+          '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" ' +
+            'stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>' +
+          '<input id="netq" placeholder="Search name, business, place, Instagram…" ' +
+            'value="' + esc(netQuery) + '" autocomplete="off">' +
+          (netQuery ? '<button class="clearq" onclick="setNetQuery(\'\')">&times;</button>' : '') +
+        '</div>' +
+        '<button class="viewtog" onclick="toggleNetView()" aria-label="Switch view">' +
+          (netView === 'table'
+            ? '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" ' +
+              'stroke-width="1.9"><rect x="3" y="3" width="7" height="7" rx="1.5"/>' +
+              '<rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>' +
+              '<rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'
+            : '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" ' +
+              'stroke-width="1.9"><path d="M3 6h18M3 12h18M3 18h18"/></svg>') +
+        '</button>' +
+      '</div>'
+
+    if (!D.people.length)
+      return head + '<div class="empty">Nobody yet.<br>Add someone with the + button.</div>'
+    if (!list.length)
+      return head + '<div class="empty">Nobody matches "' + esc(netQuery) + '".</div>'
+
+    return head + (netView === 'table' ? peopleTable(list) : list.map(personCard).join(''))
+  },
 
   inbox: () => pushBanner() + (D.captures.length ? D.captures.map(c => `
     <div class="card">
@@ -336,12 +413,206 @@ async function enablePush() {
 
 // --- shell -----------------------------------------------------------------
 
+
+// --- to-do grouping --------------------------------------------------------
+
+const startOfDay = d => new Date(d).setHours(0, 0, 0, 0)
+
+function groupTasks(tasks) {
+  const today = startOfDay(new Date())
+  const day = 86400000
+  const buckets = {
+    overdue:  { key: 'overdue',  label: 'Overdue',   items: [] },
+    today:    { key: 'today',    label: 'Today',     items: [] },
+    tomorrow: { key: 'tomorrow', label: 'Tomorrow',  items: [] },
+    week:     { key: 'week',     label: 'This week', items: [] },
+    later:    { key: 'later',    label: 'Later',     items: [] },
+    someday:  { key: 'someday',  label: 'No date',   items: [] },
+  }
+  for (const t of tasks) {
+    const when = t.remind_at || t.due_date
+    if (!when) { buckets.someday.items.push(t); continue }
+    const diff = Math.round((startOfDay(new Date(when)) - today) / day)
+    if (diff < 0) buckets.overdue.items.push(t)
+    else if (diff === 0) buckets.today.items.push(t)
+    else if (diff === 1) buckets.tomorrow.items.push(t)
+    else if (diff <= 7) buckets.week.items.push(t)
+    else buckets.later.items.push(t)
+  }
+  return Object.values(buckets).filter(b => b.items.length)
+}
+
+const collapsed = key => localStorage.getItem('jl_shut_' + key) === '1'
+
+function toggleGroup(key) {
+  localStorage.setItem('jl_shut_' + key, collapsed(key) ? '0' : '1')
+  render()
+}
+
+const taskCard = t =>
+  '<div class="card"><div class="row">' +
+    '<button class="tick" onclick="done(\'' + t.id + '\')"><svg width="14" height="14" ' +
+      'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">' +
+      '<path d="M4 12l5 5L20 6"/></svg></button>' +
+    '<div class="grow">' +
+      '<h3>' + esc(t.title) + '</h3>' +
+      (t.notes ? '<div class="meta">' + esc(t.notes) + '</div>' : '') +
+      '<div style="margin-top:6px">' +
+        (t.priority && t.priority !== 'normal'
+          ? '<span class="pill warn">' + t.priority + '</span>' : '') +
+        (t.remind_at ? '<span class="pill due">' + fmt(t.remind_at) + '</span>' : '') +
+      '</div>' +
+    '</div>' +
+  '</div></div>'
+
+// --- network ---------------------------------------------------------------
+
+let netQuery = ''
+let netView = localStorage.getItem('jl_netview') || 'tiles'
+
+const FIELDS = ['name', 'company', 'role', 'from_place', 'met_place', 'met_city',
+                'met_country', 'instagram', 'phone', 'email', 'context', 'how_met', 'tags', 'tier']
+
+function filterPeople(people, q) {
+  const needle = q.trim().toLowerCase()
+  if (!needle) return people
+  // Every word has to appear somewhere, so "dubai roofing" narrows rather than widens.
+  const words = needle.split(/\s+/)
+  return people.filter(p => {
+    const hay = FIELDS.map(f => (p[f] || '')).join(' ').toLowerCase()
+    return words.every(w => hay.includes(w))
+  })
+}
+
+function setNetQuery(q) { netQuery = q; render(); const i = $('netq'); if (i) { i.focus() } }
+function toggleNetView() {
+  netView = netView === 'tiles' ? 'table' : 'tiles'
+  localStorage.setItem('jl_netview', netView)
+  render()
+}
+
+const sub = p => [p.role, p.company].filter(Boolean).join(' at ')
+
+const personCard = p =>
+  '<div class="card tap" onclick="openPerson(\'' + p.id + '\')">' +
+    '<div class="row">' +
+      '<div class="grow">' +
+        '<h3>' + esc(p.name) + '</h3>' +
+        (sub(p) ? '<div class="meta strong">' + esc(sub(p)) + '</div>' : '') +
+        (p.from_place ? '<div class="meta">From ' + esc(p.from_place) + '</div>' : '') +
+        (p.met_place || p.met_city
+          ? '<div class="meta">Met at ' + esc([p.met_place, p.met_city].filter(Boolean).join(', ')) + '</div>'
+          : '') +
+        (p.instagram ? '<div class="meta ig">@' + esc(p.instagram) + '</div>' : '') +
+        (p.phone ? '<div class="meta">' + esc(p.phone) + '</div>' : '') +
+      '</div>' +
+      '<svg class="chevr" viewBox="0 0 24 24" width="16" height="16" fill="none" ' +
+        'stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>' +
+    '</div>' +
+  '</div>'
+
+const COLS = [
+  ['name', 'Name'], ['company', 'Business'], ['role', 'Role'],
+  ['from_place', 'From'], ['met_place', 'Met at'], ['met_city', 'City'],
+  ['phone', 'Phone'], ['instagram', 'Instagram'], ['tier', 'Tier'],
+]
+
+const peopleTable = list =>
+  '<div class="tablewrap"><table><thead><tr>' +
+    COLS.map(c => '<th>' + c[1] + '</th>').join('') +
+  '</tr></thead><tbody>' +
+    list.map(p => '<tr onclick="openPerson(\'' + p.id + '\')">' +
+      COLS.map(c => {
+        const v = p[c[0]] || ''
+        const cell = c[0] === 'instagram' && v ? '@' + v : v
+        return '<td' + (c[0] === 'name' ? ' class="nm"' : '') + '>' + esc(cell) + '</td>'
+      }).join('') +
+    '</tr>').join('') +
+  '</tbody></table></div>'
+
+// --- one person ------------------------------------------------------------
+
+const ROWS = [
+  ['company', 'Business'], ['role', 'Role'], ['from_place', 'From'],
+  ['met_place', 'Met at'], ['met_city', 'City'], ['met_country', 'Country'],
+  ['met_date', 'Met on'], ['phone', 'Phone'], ['instagram', 'Instagram'],
+  ['email', 'Email'], ['birthday', 'Birthday'], ['tier', 'Tier'],
+  ['how_met', 'How we met'], ['context', 'Notes'], ['tags', 'Tags'],
+]
+
+async function openPerson(id) {
+  const s = document.createElement('div')
+  s.className = 'sheet'
+  s.innerHTML = '<div class="inner tall"><div class="empty">Loading…</div></div>'
+  document.body.appendChild(s)
+  s.onclick = e => { if (e.target === s) s.remove() }
+
+  const r = await call('/person/' + id)
+  if (!r.ok) { s.querySelector('.inner').innerHTML = '<div class="empty">Could not load.</div>'; return }
+  const { person: p, timeline } = await r.json()
+
+  const detail = () =>
+    '<div class="phead"><h2>' + esc(p.name) + '</h2>' +
+      '<button class="closex" onclick="this.closest(\'.sheet\').remove()">&times;</button></div>' +
+    '<div class="prows">' +
+      ROWS.filter(f => p[f[0]]).map(f => {
+        const v = f[0] === 'instagram' ? '@' + p[f[0]] : p[f[0]]
+        const val = f[0] === 'phone'
+          ? '<a href="tel:' + esc(p.phone) + '">' + esc(v) + '</a>'
+          : f[0] === 'instagram'
+            ? '<a href="https://instagram.com/' + esc(p.instagram) + '" target="_blank">' + esc(v) + '</a>'
+            : esc(v)
+        return '<div class="prow"><span class="k">' + f[1] + '</span><span class="v">' + val + '</span></div>'
+      }).join('') +
+    '</div>' +
+    (timeline.length
+      ? '<h4 class="tlh">Timeline</h4>' + timeline.map(i =>
+          '<div class="tl"><div class="tld">' + fmt(i.date) + '</div>' +
+          '<div>' + esc(i.note) + '</div></div>').join('')
+      : '') +
+    '<textarea id="pnote" placeholder="Say anything — a correction, or what just happened. ' +
+      '&quot;His Instagram is rashid.almarri and he moved to Abu Dhabi&quot;"></textarea>' +
+    '<button class="btn" id="psave">Add / update</button>'
+
+  s.querySelector('.inner').innerHTML = detail()
+
+  s.querySelector('#psave').onclick = async () => {
+    const text = s.querySelector('#pnote').value.trim()
+    if (!text) return
+    s.querySelector('#psave').textContent = 'Working…'
+    try {
+      const rr = await call('/person/' + id + '/note', { method: 'POST', body: JSON.stringify({ text }) })
+      const j = await rr.json()
+      const changed = Object.keys(j.updates || {})
+      s.querySelector('.inner').innerHTML =
+        '<div class="filed">' +
+          '<div class="tickbig"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
+            'stroke="currentColor" stroke-width="3"><path d="M4 12l5 5L20 6"/></svg></div>' +
+          '<h3>' + esc(j.spoken || 'Saved.') + '</h3>' +
+          (changed.length
+            ? '<div class="meta">' + changed.map(k => '<span class="pill">' + esc(k.replace(/_/g, ' ')) + '</span>').join('') + '</div>'
+            : '') +
+        '</div>'
+      setTimeout(() => { s.remove(); load() }, 1500)
+    } catch (e) {
+      s.querySelector('#psave').textContent = 'No connection — try again'
+    }
+  }
+}
+
 function render() {
+  const q = $('netq'), caret = q ? q.selectionStart : null
   $('title').textContent = { todos: 'To-dos', thoughts: 'Thoughts', network: 'Network', inbox: 'Inbox' }[tab]
   $('view').innerHTML = loaded ? views[tab]()
     : '<div class="empty">Could not reach the server.<br>' +
       '<button class="btn" style="max-width:200px;margin:16px auto 0" onclick="load()">Try again</button></div>'
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab))
+
+  const nq = $('netq')
+  if (nq) {
+    nq.oninput = e => { netQuery = e.target.value; render() }
+    if (q) { nq.focus(); if (caret != null) nq.setSelectionRange(caret, caret) }
+  }
 }
 
 async function load() {
