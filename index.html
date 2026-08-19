@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jayden's Life</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#141110">
+<style>
+:root{
+  --bg:oklch(0.115 0.008 40); --fg:oklch(0.96 0.006 60); --card:oklch(0.15 0.01 40);
+  --raised:oklch(0.175 0.012 40); --primary:oklch(0.72 0.2 45); --muted:oklch(0.195 0.012 40);
+  --muted-fg:oklch(0.62 0.018 50); --border:oklch(0.235 0.014 40); --success:oklch(0.72 0.17 152);
+  --warning:oklch(0.8 0.15 80);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font-family:ui-sans-serif,-apple-system,'SF Pro Text',system-ui,sans-serif;
+  padding-bottom:calc(76px + env(safe-area-inset-bottom));font-size:16px}
+header{position:sticky;top:0;z-index:5;background:color-mix(in oklab,var(--bg) 88%,transparent);
+  backdrop-filter:blur(12px);padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:-.01em}
+header .sp{margin-left:auto;font-size:12px;color:var(--muted-fg)}
+main{padding:14px 16px 24px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
+.card h3{margin:0 0 4px;font-size:15px;font-weight:600;line-height:1.35}
+.meta{font-size:12.5px;color:var(--muted-fg);line-height:1.5}
+.row{display:flex;gap:12px;align-items:flex-start}
+.grow{flex:1;min-width:0}
+button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+.tick{width:26px;height:26px;flex:0 0 26px;border:1.5px solid var(--border);border-radius:50%;
+  display:grid;place-items:center;color:transparent;transition:.15s}
+.tick:active{background:var(--success);border-color:var(--success);color:#000}
+.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;
+  background:var(--muted);color:var(--muted-fg);margin-right:5px}
+.pill.warn{background:color-mix(in oklab,var(--warning) 22%,transparent);color:var(--warning)}
+.pill.due{background:color-mix(in oklab,var(--primary) 22%,transparent);color:var(--primary)}
+nav{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(4,1fr);
+  background:color-mix(in oklab,var(--bg) 94%,transparent);backdrop-filter:blur(16px);
+  border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav button{padding:10px 0 12px;font-size:11px;color:var(--muted-fg);display:grid;gap:3px;justify-items:center}
+nav button.on{color:var(--primary)}
+nav svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+.fab{position:fixed;right:18px;bottom:calc(84px + env(safe-area-inset-bottom));width:56px;height:56px;
+  border-radius:50%;background:var(--primary);color:#211208;display:grid;place-items:center;
+  box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:7;font-size:26px}
+.empty{text-align:center;color:var(--muted-fg);padding:56px 20px;font-size:14px;line-height:1.6}
+textarea{width:100%;background:var(--raised);border:1px solid var(--border);border-radius:12px;
+  color:var(--fg);padding:12px;font:inherit;min-height:110px;resize:none}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:20;display:flex;align-items:flex-end}
+.sheet .inner{background:var(--card);width:100%;border-radius:18px 18px 0 0;padding:18px 16px
+  calc(18px + env(safe-area-inset-bottom));border-top:1px solid var(--border)}
+.btn{background:var(--primary);color:#211208;border-radius:12px;padding:13px;width:100%;
+  font-weight:620;font-size:15px;margin-top:10px}
+.btn.ghost{background:var(--muted);color:var(--fg)}
+.banner{background:var(--raised);border:1px solid var(--border);border-radius:12px;padding:12px;
+  margin-bottom:12px;font-size:13px;color:var(--muted-fg);line-height:1.5}
+.banner b{color:var(--fg);font-weight:600}
+a{color:var(--primary)}
+</style>
+</head>
+<body>
+<header><h1 id="title">To-dos</h1><span class="sp" id="sp"></span></header>
+<main id="view"><div class="empty">Loading…</div></main>
+<button class="fab" id="fab">+</button>
+<nav>
+  <button data-tab="todos" class="on"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>To-dos</button>
+  <button data-tab="thoughts"><svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 00-4 12.7V19h8v-3.3A7 7 0 0012 3z"/><path d="M10 22h4"/></svg>Thoughts</button>
+  <button data-tab="network"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M17 11.5a3 3 0 100-6"/><path d="M18 20h3.5a5.5 5.5 0 00-4-5.3"/></svg>Network</button>
+  <button data-tab="inbox"><svg viewBox="0 0 24 24"><path d="M3 13h5l2 3h4l2-3h5"/><path d="M5 5h14l2 8v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5z"/></svg>Inbox</button>
+</nav>
+
+<script>
+// Substituted by scripts/build-static.ts at build time — the page is hosted on
+// GitHub Pages, the API lives on Supabase, so this must be absolute.
+const API = 'https://aezhxtaeelcfnzcitkfe.supabase.co/functions/v1/jl'
+const KEY = new URLSearchParams(location.search).get('k') || localStorage.getItem('jlkey') || ''
+if (KEY) localStorage.setItem('jlkey', KEY)
+const api = (p, o = {}) => fetch(API + p, {
+  ...o, headers: { 'x-jl-key': KEY, 'content-type': 'application/json', ...(o.headers || {}) }
+})
+
+let D = { tasks: [], thoughts: [], people: [], captures: [] }
+let tab = new URLSearchParams(location.search).get('tab') || 'todos'
+
+const esc = s => (s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))
+const fmt = iso => {
+  if (!iso) return ''
+  const d = new Date(iso), now = new Date()
+  const day = new Date(d).setHours(0,0,0,0), today = new Date(now).setHours(0,0,0,0)
+  const diff = Math.round((day - today) / 86400000)
+  const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  if (diff === 0) return 'Today ' + t
+  if (diff === 1) return 'Tomorrow ' + t
+  if (diff === -1) return 'Yesterday ' + t
+  if (diff < 0) return Math.abs(diff) + 'd overdue'
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + t
+}
+
+const views = {
+  todos: () => D.tasks.length ? D.tasks.map(t => `
+    <div class="card"><div class="row">
+      <button class="tick" onclick="done('${t.id}')"><svg width="14" height="14" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor" stroke-width="3.5"><path d="M4 12l5 5L20 6"/></svg></button>
+      <div class="grow">
+        <h3>${esc(t.title)}</h3>
+        ${t.notes ? '<div class="meta">' + esc(t.notes) + '</div>' : ''}
+        <div style="margin-top:6px">
+          ${t.priority && t.priority !== 'normal' ? '<span class="pill warn">' + t.priority + '</span>' : ''}
+          ${t.remind_at ? '<span class="pill due">' + fmt(t.remind_at) + '</span>' : ''}
+        </div>
+      </div>
+    </div></div>`).join('')
+    : '<div class="empty">Nothing on the list.<br>Say "Hey Siri, add to my to-do list".</div>',
+
+  thoughts: () => D.thoughts.length ? D.thoughts.map(t => `
+    <div class="card" onclick="archive('${t.id}')">
+      ${t.title ? '<h3>' + esc(t.title) + '</h3>' : ''}
+      <div class="meta" style="color:var(--fg);font-size:14.5px">${esc(t.body)}</div>
+      <div class="meta" style="margin-top:8px">${fmt(t.created_at)}</div>
+    </div>`).join('')
+    : '<div class="empty">No thoughts captured yet.<br>Say "Hey Siri, add to my thoughts".</div>',
+
+  network: () => D.people.length ? D.people.map(p => `
+    <div class="card">
+      <h3>${esc(p.name)}</h3>
+      ${p.context ? '<div class="meta">' + esc(p.context) + '</div>' : ''}
+      ${p.how_met ? '<div class="meta">' + esc(p.how_met) + '</div>' : ''}
+      <div style="margin-top:8px">
+        ${p.met_place ? '<span class="pill">' + esc(p.met_place) + '</span>' : ''}
+        ${p.tier ? '<span class="pill">' + esc(p.tier) + '</span>' : ''}
+      </div>
+      ${p.phone ? '<div style="margin-top:8px"><a href="tel:' + esc(p.phone) + '">' + esc(p.phone) + '</a></div>' : ''}
+    </div>`).join('')
+    : '<div class="empty">Nobody yet.<br>Say "Hey Siri, log a person".</div>',
+
+  inbox: () => pushBanner() + (D.captures.length ? D.captures.map(c => `
+    <div class="card">
+      <div class="meta" style="color:var(--fg);font-size:14.5px">${esc(c.raw_text)}</div>
+      <div style="margin-top:8px">
+        <span class="pill ${c.status === 'filed' ? '' : 'warn'}">${c.status}</span>
+        ${c.parsed_type ? '<span class="pill">' + c.parsed_type + '</span>' : ''}
+        ${c.parser === 'rules' ? '<span class="pill warn">no AI</span>' : ''}
+      </div>
+      <div class="meta" style="margin-top:6px">${fmt(c.created_at)}</div>
+    </div>`).join('') : '<div class="empty">Nothing captured yet.</div>'),
+}
+
+function pushBanner() {
+  if (!('Notification' in window)) return ''
+  if (Notification.permission === 'granted') return ''
+  return '<div class="banner"><b>Reminders are off.</b> Turn on notifications so to-dos ' +
+    'can chase you.<button class="btn" onclick="enablePush()">Turn on notifications</button></div>'
+}
+
+function render() {
+  document.getElementById('title').textContent =
+    { todos: 'To-dos', thoughts: 'Thoughts', network: 'Network', inbox: 'Inbox' }[tab]
+  document.getElementById('view').innerHTML = views[tab]()
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab))
+}
+
+async function load() {
+  if (!KEY) { document.getElementById('view').innerHTML =
+    '<div class="empty">Open this page using the full link with your key.</div>'; return }
+  const r = await api('/data')
+  if (!r.ok) { document.getElementById('view').innerHTML =
+    '<div class="empty">Key rejected. Open the full link again.</div>'; return }
+  D = await r.json()
+  const spent = D.usage ? Number(D.usage.cost_usd) : 0
+  document.getElementById('sp').textContent = spent ? '$' + spent.toFixed(2) + ' this month' : ''
+  render()
+}
+
+async function done(id) { await api('/task/' + id + '/done', { method: 'POST' })
+  D.tasks = D.tasks.filter(t => t.id !== id); render() }
+async function archive(id) { await api('/thought/' + id + '/archive', { method: 'POST' })
+  D.thoughts = D.thoughts.filter(t => t.id !== id); render() }
+
+document.querySelectorAll('nav button').forEach(b =>
+  b.onclick = () => { tab = b.dataset.tab; render() })
+
+// --- typing a capture from the phone ---------------------------------------
+document.getElementById('fab').onclick = () => {
+  const s = document.createElement('div')
+  s.className = 'sheet'
+  s.innerHTML = '<div class="inner"><textarea id="ta" placeholder="Say anything — a to-do, ' +
+    'a thought, someone you met…" autofocus></textarea>' +
+    '<button class="btn" id="send">Capture</button>' +
+    '<button class="btn ghost" id="cancel">Cancel</button></div>'
+  document.body.appendChild(s)
+  s.querySelector('#cancel').onclick = () => s.remove()
+  s.onclick = e => { if (e.target === s) s.remove() }
+  s.querySelector('#send').onclick = async () => {
+    const text = s.querySelector('#ta').value.trim()
+    if (!text) return
+    s.querySelector('#send').textContent = 'Filing…'
+    await api('/capture', { method: 'POST', body: JSON.stringify({ text, source: 'app' }) })
+    s.remove(); load()
+  }
+  setTimeout(() => s.querySelector('#ta').focus(), 50)
+}
+
+// --- push -------------------------------------------------------------------
+const b64 = s => {
+  const p = (s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')
+  return Uint8Array.from(atob(p), c => c.charCodeAt(0))
+}
+
+async function enablePush() {
+  try {
+    const perm = await Notification.requestPermission()
+    if (perm !== 'granted') return alert('Notifications are blocked. Turn them on in Settings > Notifications > Life.')
+    const reg = await navigator.serviceWorker.register('./sw.js')
+    await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: b64(D.vapidPublicKey),
+    })
+    const j = sub.toJSON()
+    await api('/subscribe', { method: 'POST', body: JSON.stringify({
+      endpoint: j.endpoint, keys: j.keys, label: navigator.userAgent.slice(0, 60) }) })
+    render()
+    alert('Reminders are on.')
+  } catch (e) { alert('Could not turn on notifications: ' + e.message) }
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {})
+load()
+setInterval(load, 60000)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load() })
+</script>
+</body>
+</html>
